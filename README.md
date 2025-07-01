@@ -22,7 +22,7 @@ cargo install asimov-ftp-module
 ## 👉 Examples
 
 ```bash
-asimov-ftp-fetcher
+asimov-ftp-fetcher ftp://ftp.isc.org/welcome.msg
 ```
 
 ## 👨‍💻 Development
