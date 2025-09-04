@@ -15,6 +15,10 @@ struct Options {
     #[clap(flatten)]
     flags: StandardOptions,
 
+    /// The output format.
+    #[arg(value_name = "FORMAT", short = 'o', long)]
+    output: Option<String>,
+
     /// The `ftp:` or `ftps:` URL to fetch
     url: String,
 }
