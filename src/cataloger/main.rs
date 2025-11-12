@@ -1,17 +1,20 @@
 // This is free and unencumbered software released into the public domain.
 
 #[cfg(not(feature = "std"))]
-compile_error!("asimov-ftp-fetcher requires the 'std' feature");
+compile_error!("asimov-ftp-cataloger requires the 'std' feature");
 
 use asimov_module::SysexitsError::{self, *};
 use clap::Parser;
 use clientele::StandardOptions;
-use know::traits::ToJsonLd;
-use std::{error::Error, io::Write as _};
-use suppaftp::FtpStream;
+use know::{
+    classes::{FileMetadata, FileType},
+    traits::ToJsonLd,
+};
+use std::error::Error;
+use suppaftp::{FtpStream, Mode};
 use url::Url;
 
-/// asimov-ftp-fetcher
+/// asimov-ftp-cataloger
 #[derive(Debug, Parser)]
 #[command(arg_required_else_help = true)]
 struct Options {
@@ -22,7 +25,7 @@ struct Options {
     #[arg(value_name = "FORMAT", short = 'o', long, default_value_t, value_enum)]
     output: OutputFormat,
 
-    /// The `ftp:` or `ftps:` URLs to fetch
+    /// The `ftp:` or `ftps:` URLs to catalog
     urls: Vec<String>,
 }
 
@@ -61,8 +64,6 @@ fn main() -> Result<SysexitsError, Box<dyn Error>> {
     #[cfg(feature = "tracing")]
     asimov_module::init_tracing_subscriber(&options.flags).expect("failed to initialize logging");
 
-    let mut output = std::io::stdout().lock();
-
     for url in options.urls {
         let parsed = Url::parse(&url)?;
         let scheme = parsed.scheme();
@@ -71,7 +72,6 @@ fn main() -> Result<SysexitsError, Box<dyn Error>> {
         }
         let host = parsed.host_str().ok_or("no host")?;
         let port = parsed.port().unwrap_or(21);
-        let path = parsed.path().strip_prefix('/').unwrap();
         let username = parsed.username();
         let password = parsed.password().unwrap_or("");
         let username = if username.is_empty() {
@@ -87,25 +87,39 @@ fn main() -> Result<SysexitsError, Box<dyn Error>> {
 
         let mut ftp = FtpStream::connect((host, port))?;
         ftp.login(username, password)?;
+        ftp.set_mode(Mode::Passive);
 
-        let data = ftp.retr_as_buffer(path)?.into_inner();
+        let files = asimov_ftp_module::list(&mut ftp, &url)?;
 
-        let name = path.split('/').next_back().unwrap_or(path).to_string();
+        for metadata in files {
+            match options.output {
+                OutputFormat::Jsonl | OutputFormat::Jsonld | OutputFormat::Json => {
+                    println!("{}", metadata.to_jsonld()?)
+                },
+                OutputFormat::Cli => {
+                    let print = |metadata: &FileMetadata| {
+                        match options.flags.verbose {
+                            0 => println!("{}", metadata.inline()),
+                            1 => println!("{}", metadata.oneliner()),
+                            2 => println!("{}", metadata.concise()),
+                            3.. => println!("{}", metadata.detailed()),
+                        };
+                    };
 
-        let file = know::classes::File {
-            id: Some(url.clone()),
-            name: Some(name),
-            size: data.len() as u64,
-            data,
-        };
+                    print(&metadata);
 
-        match options.output {
-            OutputFormat::Jsonl | OutputFormat::Jsonld | OutputFormat::Json => {
-                writeln!(&mut output, "{}", file.to_jsonld()?)?;
-            },
-            OutputFormat::Cli => {
-                output.write_all(&file.data)?;
-            },
+                    if let FileType::Directory { children } = metadata.filetype {
+                        for child in children {
+                            let metadata = FileMetadata {
+                                id: Some(child),
+                                ..Default::default()
+                            };
+
+                            print(&metadata);
+                        }
+                    }
+                },
+            }
         }
     }
 

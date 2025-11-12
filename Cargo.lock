@@ -55,9 +55,10 @@ dependencies = [
  "asimov-module",
  "clap",
  "clientele",
- "gofer",
+ "jiff 0.1.29",
  "know",
- "suppaftp 7.0.7",
+ "suppaftp",
+ "thiserror",
  "url",
 ]
 
@@ -443,7 +444,6 @@ dependencies = [
  "data-url",
  "dogma",
  "percent-encoding",
- "suppaftp 6.3.0",
  "thiserror",
 ]
 
@@ -649,6 +649,18 @@ checksum = "4a5f13b858c8d314ee3e8f639011f7ccefe71f97f96e50151fb991f267928e2c"
 
 [[package]]
 name = "jiff"
+version = "0.1.29"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c04ef77ae73f3cf50510712722f0c4e8b46f5aaa1bf5ffad2ae213e6495e78e5"
+dependencies = [
+ "log",
+ "portable-atomic",
+ "portable-atomic-util",
+ "serde",
+]
+
+[[package]]
+name = "jiff"
 version = "0.2.16"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "49cce2b81f2098e7e3efc35bc2e0a6b7abec9d34128283d7a26fa8f32a6dbb35"
@@ -685,13 +697,14 @@ dependencies = [
 [[package]]
 name = "know"
 version = "0.2.11"
+source = "git+https://github.com/know-ontology/know.rs#9c3df9ea002a8e6aa6e71d1bde97dec57baf96a2"
 dependencies = [
  "base64",
  "cfg_eval",
  "chrono",
  "colored_json",
  "iri-string",
- "jiff",
+ "jiff 0.2.16",
  "serde",
  "serde_json",
  "serde_with",
@@ -1171,20 +1184,6 @@ checksum = "13c2bddecc57b384dee18652358fb23172facb8a2c51ccc10d74c157bdea3292"
 
 [[package]]
 name = "suppaftp"
-version = "6.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e9d869e942cc5f349ad91645925a9e6b570f62c4c170ad1c7b92b867bd16bd54"
-dependencies = [
- "chrono",
- "futures-lite",
- "lazy-regex",
- "log",
- "rustls",
- "thiserror",
-]
-
-[[package]]
-name = "suppaftp"
 version = "7.0.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ba8928c89e226be233f0eb1594e9bd023f72a948dc06581c0d908387f57de1de"
@@ -1231,18 +1230,18 @@ dependencies = [
 
 [[package]]
 name = "thiserror"
-version = "2.0.12"
+version = "2.0.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "567b8a2dae586314f7be2a752ec7474332959c6460e02bde30d702a66d488708"
+checksum = "f63587ca0f12b72a0600bcba1d40081f830876000bb46dd2337a3051618f4fc8"
 dependencies = [
  "thiserror-impl",
 ]
 
 [[package]]
 name = "thiserror-impl"
-version = "2.0.12"
+version = "2.0.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7f7cf42b4507d8ea322120659672cf1b9dbb93f8f2d4ecfd6e51350ff5b17a1d"
+checksum = "3ff15c8ecd7de3849db632e14d18d2571fa09dfc5ed93479bc4485c7a517c913"
 dependencies = [
  "proc-macro2",
  "quote",
