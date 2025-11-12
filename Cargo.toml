@@ -33,10 +33,9 @@ clientele = { version = "0.3.7", default-features = false, features = [
   "clap",
   "std",
 ], optional = true }
-gofer = { version = "0.1.8", default-features = false, features = [
-  "ftp",
-  "ftps",
-] }
+know = { path = "../know.rs/lib/know/" }
+suppaftp = { version = "7", default-features = false, features = ["rustls"] }
+url = "2.5"
 
 [profile.release]
 opt-level = "z"
@@ -46,4 +45,9 @@ lto = "thin"
 [[bin]]
 name = "asimov-ftp-fetcher"
 path = "src/fetcher/main.rs"
+required-features = ["cli"]
+
+[[bin]]
+name = "asimov-ftp-cataloger"
+path = "src/cataloger/main.rs"
 required-features = ["cli"]
