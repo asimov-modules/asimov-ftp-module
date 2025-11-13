@@ -20,7 +20,7 @@ publish = true
 default = ["all", "cli", "std"]
 all = ["tracing"]
 cli = ["asimov-module/cli", "std", "dep:clap", "dep:clientele"]
-std = ["asimov-module/std", "jiff/std", "thiserror/std"]
+std = ["asimov-module/std", "jiff/std", "thiserror/std", "iri-string/std"]
 tracing = ["asimov-module/tracing", "clientele?/tracing"]
 unstable = []
 
@@ -36,9 +36,10 @@ clientele = { version = "0.3.7", default-features = false, features = [
 # know = { version = "0.2" }
 know = { git = "https://github.com/know-ontology/know.rs" }
 suppaftp = { version = "7", default-features = false, features = ["rustls"] }
-url = "2.5"
 jiff = { version = "0.1", default-features = false, features = ["alloc"] }
 thiserror = { version = "2.0", default-features = false }
+iri-string = { version = "0.7", default-features = false, features = ["alloc"] }
+webpki-roots = "1.0.4"
 
 [profile.release]
 opt-level = "z"

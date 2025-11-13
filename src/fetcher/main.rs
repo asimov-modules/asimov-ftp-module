@@ -3,13 +3,18 @@
 #[cfg(not(feature = "std"))]
 compile_error!("asimov-ftp-fetcher requires the 'std' feature");
 
-use asimov_module::SysexitsError::{self, *};
+use asimov_ftp_module::TargetHost;
+use asimov_module::{
+    SysexitsError::{self, *},
+    tracing,
+};
 use clap::Parser;
 use clientele::StandardOptions;
+use iri_string::format::ToDedicatedString as _;
 use know::traits::ToJsonLd;
-use std::{error::Error, io::Write as _};
-use suppaftp::FtpStream;
-use url::Url;
+use std::{error::Error, io::Write as _, sync::Arc};
+use suppaftp::{Mode, RustlsFtpStream};
+// use url::Url;
 
 /// asimov-ftp-fetcher
 #[derive(Debug, Parser)]
@@ -63,50 +68,65 @@ fn main() -> Result<SysexitsError, Box<dyn Error>> {
 
     let mut output = std::io::stdout().lock();
 
-    for url in options.urls {
-        let parsed = Url::parse(&url)?;
-        let scheme = parsed.scheme();
-        if scheme != "ftp" && scheme != "ftps" {
-            return Err("only FTP and FTPS URLs are supported".into());
-        }
-        let host = parsed.host_str().ok_or("no host")?;
-        let port = parsed.port().unwrap_or(21);
-        let path = parsed.path().strip_prefix('/').unwrap();
-        let username = parsed.username();
-        let password = parsed.password().unwrap_or("");
-        let username = if username.is_empty() {
-            "anonymous"
+    let target_hosts = asimov_ftp_module::group_targets(&options.urls)?;
+
+    for (TargetHost(scheme, host, port, user), (url, paths)) in target_hosts {
+        let host_url = iri_string::types::IriAbsoluteStr::new(&url)?;
+
+        let ftp = RustlsFtpStream::connect((host.clone(), port))?;
+
+        let mut ftp = if scheme == "ftps" {
+            use suppaftp::{
+                RustlsConnector,
+                rustls::{ClientConfig, RootCertStore},
+            };
+
+            let root_store =
+                RootCertStore::from_iter(webpki_roots::TLS_SERVER_ROOTS.iter().cloned());
+
+            let config = ClientConfig::builder()
+                .with_root_certificates(root_store)
+                .with_no_client_auth();
+
+            let ctx = RustlsConnector::from(Arc::new(config));
+            ftp.into_secure(ctx, &host)
+                .inspect_err(|e| tracing::error!("{e}"))?
         } else {
-            username
-        };
-        let password = if password.is_empty() && username == "anonymous" {
-            "guest"
-        } else {
-            password
+            ftp
         };
 
-        let mut ftp = FtpStream::connect((host, port))?;
-        ftp.login(username, password)?;
+        ftp.login(user.0, user.1)?;
+        ftp.set_mode(Mode::Passive);
 
-        let data = ftp.retr_as_buffer(path)?.into_inner();
+        for path in paths {
+            let data = ftp.retr_as_buffer(&path)?.into_inner();
 
-        let name = path.split('/').next_back().unwrap_or(path).to_string();
+            let name = path.split('/').next_back().unwrap_or(&path).to_string();
 
-        let file = know::classes::File {
-            id: Some(url.clone()),
-            name: Some(name),
-            size: data.len() as u64,
-            data,
-        };
+            let file_url = iri_string::types::IriRelativeStr::new(&path)?
+                .resolve_against(host_url)
+                .and_normalize()
+                .to_dedicated_string()
+                .to_string();
 
-        match options.output {
-            OutputFormat::Jsonl | OutputFormat::Jsonld | OutputFormat::Json => {
-                writeln!(&mut output, "{}", file.to_jsonld()?)?;
-            },
-            OutputFormat::Cli => {
-                output.write_all(&file.data)?;
-            },
+            let file = know::classes::File {
+                id: Some(file_url.clone()),
+                name: Some(name),
+                size: data.len() as u64,
+                data,
+            };
+
+            match options.output {
+                OutputFormat::Jsonl | OutputFormat::Jsonld | OutputFormat::Json => {
+                    writeln!(&mut output, "{}", file.to_jsonld()?)?;
+                },
+                OutputFormat::Cli => {
+                    output.write_all(&file.data)?;
+                },
+            }
         }
+
+        let _ = ftp.quit().ok();
     }
 
     Ok(EX_OK)

@@ -3,16 +3,16 @@
 #[cfg(not(feature = "std"))]
 compile_error!("asimov-ftp-cataloger requires the 'std' feature");
 
-use asimov_module::SysexitsError::{self, *};
+use asimov_ftp_module::TargetHost;
+use asimov_module::{
+    SysexitsError::{self, *},
+    tracing,
+};
 use clap::Parser;
 use clientele::StandardOptions;
-use know::{
-    classes::{FileMetadata, FileType},
-    traits::ToJsonLd,
-};
-use std::error::Error;
-use suppaftp::{FtpStream, Mode};
-use url::Url;
+use know::{classes::FileMetadata, traits::ToJsonLd};
+use std::{error::Error, sync::Arc};
+use suppaftp::{Mode, RustlsFtpStream};
 
 /// asimov-ftp-cataloger
 #[derive(Debug, Parser)]
@@ -64,63 +64,59 @@ fn main() -> Result<SysexitsError, Box<dyn Error>> {
     #[cfg(feature = "tracing")]
     asimov_module::init_tracing_subscriber(&options.flags).expect("failed to initialize logging");
 
-    for url in options.urls {
-        let parsed = Url::parse(&url)?;
-        let scheme = parsed.scheme();
-        if scheme != "ftp" && scheme != "ftps" {
-            return Err("only FTP and FTPS URLs are supported".into());
-        }
-        let host = parsed.host_str().ok_or("no host")?;
-        let port = parsed.port().unwrap_or(21);
-        let username = parsed.username();
-        let password = parsed.password().unwrap_or("");
-        let username = if username.is_empty() {
-            "anonymous"
+    let target_hosts = asimov_ftp_module::group_targets(&options.urls)?;
+
+    for (TargetHost(scheme, host, port, user), (url, paths)) in target_hosts {
+        let ftp = RustlsFtpStream::connect((host.clone(), port))?;
+
+        let mut ftp = if scheme == "ftps" {
+            use suppaftp::{
+                RustlsConnector,
+                rustls::{ClientConfig, RootCertStore},
+            };
+
+            let root_store =
+                RootCertStore::from_iter(webpki_roots::TLS_SERVER_ROOTS.iter().cloned());
+
+            let config = ClientConfig::builder()
+                .with_root_certificates(root_store)
+                .with_no_client_auth();
+
+            let ctx = RustlsConnector::from(Arc::new(config));
+            ftp.into_secure(ctx, &host)
+                .inspect_err(|e| tracing::error!("{e}"))?
         } else {
-            username
-        };
-        let password = if password.is_empty() && username == "anonymous" {
-            "guest"
-        } else {
-            password
+            ftp
         };
 
-        let mut ftp = FtpStream::connect((host, port))?;
-        ftp.login(username, password)?;
+        ftp.login(user.0, user.1)?;
         ftp.set_mode(Mode::Passive);
 
-        let files = asimov_ftp_module::list(&mut ftp, &url)?;
+        for path in paths {
+            let files = asimov_ftp_module::list(&mut ftp, &path, &url)?;
 
-        for metadata in files {
-            match options.output {
-                OutputFormat::Jsonl | OutputFormat::Jsonld | OutputFormat::Json => {
-                    println!("{}", metadata.to_jsonld()?)
-                },
-                OutputFormat::Cli => {
-                    let print = |metadata: &FileMetadata| {
-                        match options.flags.verbose {
-                            0 => println!("{}", metadata.inline()),
-                            1 => println!("{}", metadata.oneliner()),
-                            2 => println!("{}", metadata.concise()),
-                            3.. => println!("{}", metadata.detailed()),
-                        };
-                    };
-
-                    print(&metadata);
-
-                    if let FileType::Directory { children } = metadata.filetype {
-                        for child in children {
-                            let metadata = FileMetadata {
-                                id: Some(child),
-                                ..Default::default()
+            for metadata in files {
+                match options.output {
+                    OutputFormat::Jsonl | OutputFormat::Jsonld | OutputFormat::Json => {
+                        println!("{}", metadata.to_jsonld()?)
+                    },
+                    OutputFormat::Cli => {
+                        let print = |metadata: &FileMetadata| {
+                            match options.flags.verbose {
+                                0 => println!("{}", metadata.inline()),
+                                1 => println!("{}", metadata.oneliner()),
+                                2 => println!("{}", metadata.concise()),
+                                3.. => println!("{}", metadata.detailed()),
                             };
+                        };
 
-                            print(&metadata);
-                        }
-                    }
-                },
+                        print(&metadata);
+                    },
+                }
             }
         }
+
+        let _ = ftp.quit().ok();
     }
 
     Ok(EX_OK)
