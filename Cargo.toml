@@ -52,6 +52,6 @@ path = "src/fetcher/main.rs"
 required-features = ["cli"]
 
 [[bin]]
-name = "asimov-ftp-cataloger"
-path = "src/cataloger/main.rs"
+name = "asimov-ftp-lister"
+path = "src/lister/main.rs"
 required-features = ["cli"]

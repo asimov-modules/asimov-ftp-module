@@ -1,7 +1,7 @@
 // This is free and unencumbered software released into the public domain.
 
 #[cfg(not(feature = "std"))]
-compile_error!("asimov-ftp-cataloger requires the 'std' feature");
+compile_error!("asimov-ftp-lister requires the 'std' feature");
 
 use asimov_ftp_module::TargetHost;
 use asimov_module::{
@@ -14,7 +14,7 @@ use know::{classes::FileMetadata, traits::ToJsonLd};
 use std::{error::Error, sync::Arc};
 use suppaftp::{Mode, RustlsFtpStream};
 
-/// asimov-ftp-cataloger
+/// asimov-ftp-lister
 #[derive(Debug, Parser)]
 #[command(arg_required_else_help = true)]
 struct Options {
@@ -25,7 +25,7 @@ struct Options {
     #[arg(value_name = "FORMAT", short = 'o', long, default_value_t, value_enum)]
     output: OutputFormat,
 
-    /// The `ftp:` or `ftps:` URLs to catalog
+    /// The `ftp:` or `ftps:` URLs to list
     urls: Vec<String>,
 }
 

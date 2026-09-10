@@ -11,7 +11,7 @@ links:
 provides:
   programs:
     - asimov-ftp-fetcher
-    - asimov-ftp-cataloger
+    - asimov-ftp-lister
 
 handles:
   url_protocols:
